@@ -111,4 +111,257 @@ const ctx = canvas.getContext("2d");
 let gameStarted = false;
 let gameOver = false;
 let attempts = 1;
-let
+let progress = 0;
+let isPressing = false;
+
+const floorLimit = canvas.height - 65;
+const ceilingLimit = 65;
+
+let hazards = [];
+let bgTimer = 0;
+
+// PLAYER (Triangle)
+const player = {
+    x: 180,
+    y: (floorLimit + ceilingLimit) / 2,
+    size: 30,
+    speedY: 6.5,
+    rotation: 0
+};
+
+// MUSIC — Logic Gatekeeper Inspired
+let audioCtx = null;
+
+function startMusic() {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    const master = audioCtx.createGain();
+    master.gain.value = 0.45;
+    master.connect(audioCtx.destination);
+
+    // Dark rumble bass
+    const bass = audioCtx.createOscillator();
+    bass.type = "sawtooth";
+    bass.frequency.value = 55;
+
+    const bassFilter = audioCtx.createBiquadFilter();
+    bassFilter.type = "lowpass";
+    bassFilter.frequency.value = 180;
+
+    const bassGain = audioCtx.createGain();
+    bassGain.gain.value = 0.25;
+
+    bass.connect(bassFilter);
+    bassFilter.connect(bassGain);
+    bassGain.connect(master);
+    bass.start();
+
+    // Glitch pulses
+    function pulse(time) {
+        const osc = audioCtx.createOscillator();
+        osc.type = "square";
+        osc.frequency.value = 440;
+
+        const gain = audio.createGain();
+        gain.gain.setValueAtTime(0.3, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+
+        osc.connect(gain);
+        gain.connect(master);
+
+        osc.start(time);
+        osc.stop(time + 0.1);
+    }
+
+    const bpm = 150;
+    const interval = 60 / bpm;
+
+    function schedule() {
+        const now = audioCtx.currentTime;
+        for (let i = 0; i < 8; i++) {
+            pulse(now + i * interval);
+        }
+        setTimeout(schedule, interval * 800);
+    }
+
+    schedule();
+}
+
+// INPUT
+function handleInput(state) {
+    if (!gameStarted) return;
+    if (gameOver && state) resetGame();
+    isPressing = state;
+}
+
+window.addEventListener("keydown", e => {
+    if (e.code === "Space" || e.code === "ArrowUp") {
+        e.preventDefault();
+        handleInput(true);
+    }
+});
+window.addEventListener("keyup", e => {
+    if (e.code === "Space" || e.code === "ArrowUp") handleInput(false);
+});
+canvas.addEventListener("mousedown", () => handleInput(true));
+canvas.addEventListener("mouseup", () => handleInput(false));
+
+// MENU BUTTON
+document.getElementById("play-btn").onclick = () => {
+    document.getElementById("menu").style.display = "none";
+    startMusic();
+    gameStarted = true;
+    document.querySelectorAll(".ui-element").forEach(el => el.style.display = "block");
+    document.getElementById("progress-container").style.display = "block";
+    spawnHazard();
+};
+
+// HAZARDS
+function spawnHazard() {
+    if (gameOver || progress >= 100) return;
+
+    const gapSize = Math.max(95, 150 - progress * 0.8);
+    const rand = Math.random();
+
+    if (rand < 0.5) {
+        const openY = Math.random() * (floorLimit - ceilingLimit - gapSize - 40) + ceilingLimit + 20;
+
+        hazards.push({ x: canvas.width, y: ceilingLimit, width: 45, height: openY - ceilingLimit });
+        hazards.push({ x: canvas.width, y: openY + gapSize, width: 45, height: floorLimit - (openY + gapSize) });
+    } else {
+        const pillarH = Math.random() * 80 + 50;
+        const top = Math.random() > 0.5;
+
+        hazards.push({
+            x: canvas.width,
+            y: top ? ceilingLimit : floorLimit - pillarH,
+            width: 35,
+            height: pillarH
+        });
+    }
+
+    const interval = Math.max(450, Math.random() * 800 + 600 - 120);
+    setTimeout(spawnHazard, interval);
+}
+
+// RESET
+function resetGame() {
+    hazards = [];
+    player.y = (floorLimit + ceilingLimit) / 2;
+    player.rotation = 0;
+    progress = 0;
+    attempts++;
+    gameOver = false;
+    isPressing = false;
+
+    document.getElementById("attempt-val").innerText = attempts;
+    document.getElementById("progress-bar").style.width = "0%";
+
+    spawnHazard();
+}
+
+// COLLISION
+function checkCollision(h) {
+    return (
+        player.x + player.size > h.x &&
+        player.x - player.size < h.x + h.width &&
+        player.y + player.size > h.y &&
+        player.y - player.size < h.y + h.height
+    );
+}
+
+// DRAW OBSTACLES
+function drawHazard(h) {
+    const grad = ctx.createLinearGradient(h.x, h.y, h.x + h.width, h.y + h.height);
+    grad.addColorStop(0, "#00aaff");
+    grad.addColorStop(0.5, "#00ffee");
+    grad.addColorStop(1, "#00ffaa");
+
+    ctx.fillStyle = grad;
+    ctx.shadowColor = "#00ffff";
+    ctx.shadowBlur = 18;
+
+    ctx.beginPath();
+    ctx.roundRect(h.x, h.y, h.width, h.height, 12);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+}
+
+// GAME LOOP
+function update() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (!gameStarted) {
+        return requestAnimationFrame(update);
+    }
+
+    // Background
+    bgTimer += 0.015;
+    const shift = Math.sin(bgTimer) * 15;
+
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, "#00142d");
+    grad.addColorStop(0.5, "#002b54");
+    grad.addColorStop(1, "#000914");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Rays
+    ctx.fillStyle = "rgba(0,255,255,0.03)";
+    for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(200 + i * 150 + shift, 0);
+        ctx.lineTo(350 + i * 200 + shift, canvas.height);
+        ctx.lineTo(150 + i * 200 + shift, canvas.height);
+        ctx.fill();
+    }
+
+    // Physics
+    if (!gameOver && progress < 100) {
+        player.y += isPressing ? -player.speedY : player.speedY;
+        player.rotation = isPressing ? -0.35 : 0.35;
+
+        player.y = Math.max(ceilingLimit + player.size, Math.min(floorLimit - player.size, player.y));
+
+        hazards.forEach(h => h.x -= 8);
+        hazards = hazards.filter(h => h.x + h.width > 0);
+
+        hazards.forEach(h => {
+            if (checkCollision(h)) {
+                gameOver = true;
+            }
+        });
+
+        progress += 0.12;
+        document.getElementById("progress-bar").style.width = progress + "%";
+    }
+
+    // Draw hazards
+    hazards.forEach(drawHazard);
+
+    // Draw triangle player
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(player.rotation);
+    ctx.shadowColor = "#00ffaa";
+    ctx.shadowBlur = 25;
+    ctx.fillStyle = "#00ffaa";
+
+    ctx.beginPath();
+    ctx.moveTo(0, -player.size/2);
+    ctx.lineTo(player.size/2, player.size/2);
+    ctx.lineTo(-player.size/2, player.size/2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+
+    requestAnimationFrame(update);
+}
+
+update();
+</script>
+
+</body>
+</html>
