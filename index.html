@@ -1,10 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tidal Wave Edition</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: #000c1a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            color: #fff;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0, 183, 255, 0.4);
+            border: 3px solid #00d2ff;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        canvas { display: block; background: #000; cursor: pointer; }
+        .ui-element {
+            position: absolute;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-shadow: 0 0 8px #00d2ff;
+            pointer-events: none;
+            z-index: 10;
+            display: none;
+        }
+        #left-ui { top: 25px; left: 30px; font-size: 18px; color: #00ffff; }
+        #right-ui { top: 25px; right: 30px; font-size: 18px; color: #00ffaa; }
+        #progress-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: rgba(0, 24, 51, 0.6);
+            display: none;
+        }
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(to right, #00ffff, #00ffaa);
+            box-shadow: 0 0 10px #00ffff;
+            transition: width 0.1s linear;
+        }
+        #instructions {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #557a95;
+            text-align: center;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="progress-container"><div id="progress-bar"></div></div>
+        <div id="left-ui" class="ui-element">ATTEMPT: <span id="attempt-val">1</span></div>
+        <div id="right-ui" class="ui-element">WAVE MODE</div>
+        <canvas id="tidalCanvas" width="950" height="480"></canvas>
+    </div>
+
+    <div id="instructions">
+        <strong>TIDAL WAVE CONTROLS:</strong> HOLD SPACEBAR or MOUSE CLICK to rise.<br>
+        RELEASE to dive. Reach 100% to win!
+    </div>
+
 <script>
 const canvas = document.getElementById("tidalCanvas");
 const ctx = canvas.getContext("2d");
 
-// =========================
 // GAME STATE
-// =========================
 let gameStarted = false;
 let gameOver = false;
 let attempts = 1;
@@ -17,9 +91,7 @@ const ceilingLimit = 65;
 let hazards = [];
 let bgTimer = 0;
 
-// =========================
 // PLAYER
-// =========================
 const player = {
     x: 180,
     y: (floorLimit + ceilingLimit) / 2,
@@ -28,14 +100,12 @@ const player = {
     rotation: 0
 };
 
-// =========================
 // AUDIO
-// =========================
 let audioCtx = null;
 
 function startAudio() {
     if (audioCtx) return;
-    audioCtx = new AudioContext();
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 1.5, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -73,9 +143,7 @@ function playExplosion() {
     osc.stop(audioCtx.currentTime + 0.4);
 }
 
-// =========================
 // INPUT
-// =========================
 function handleInput(state) {
     if (!gameStarted && state) {
         startAudio();
@@ -102,9 +170,7 @@ window.addEventListener("keyup", e => {
 canvas.addEventListener("mousedown", () => handleInput(true));
 canvas.addEventListener("mouseup", () => handleInput(false));
 
-// =========================
 // HAZARD GENERATION
-// =========================
 function spawnHazard() {
     if (gameOver || progress >= 100) return;
 
@@ -132,9 +198,7 @@ function spawnHazard() {
     setTimeout(spawnHazard, interval);
 }
 
-// =========================
 // RESET
-// =========================
 function resetGame() {
     hazards = [];
     player.y = (floorLimit + ceilingLimit) / 2;
@@ -150,9 +214,7 @@ function resetGame() {
     spawnHazard();
 }
 
-// =========================
 // COLLISION
-// =========================
 function checkCollision(h) {
     return (
         player.x + player.size > h.x &&
@@ -162,9 +224,7 @@ function checkCollision(h) {
     );
 }
 
-// =========================
 // RENDER LOOP
-// =========================
 function update() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -238,3 +298,6 @@ function update() {
 
 update();
 </script>
+
+</body>
+</html>
