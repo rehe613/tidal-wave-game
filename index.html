@@ -100,28 +100,52 @@ const player = {
     rotation: 0
 };
 
-// AUDIO
+// AUDIO — NEW AMBIENT OCEAN MUSIC
 let audioCtx = null;
 
 function startAudio() {
     if (audioCtx) return;
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 1.5, audioCtx.sampleRate);
-    const data = buffer.getChannelData(0);
+    const master = audioCtx.createGain();
+    master.gain.value = 0.35;
+    master.connect(audioCtx.destination);
 
-    for (let i = 0; i < data.length; i++) {
-        const t = i / audioCtx.sampleRate;
-        const step = t % 0.18;
-        data[i] = Math.sin(2 * Math.PI * 85 * step) * Math.exp(-12 * step) * 0.35;
-        data[i] += (Math.random() - 0.5) * 0.08 * Math.exp(-8 * step);
-    }
+    // Soft ocean hum
+    const hum = audioCtx.createOscillator();
+    hum.type = "sine";
+    hum.frequency.value = 80;
 
-    const src = audioCtx.createBufferSource();
-    src.buffer = buffer;
-    src.loop = true;
-    src.connect(audioCtx.destination);
-    src.start();
+    const humGain = audioCtx.createGain();
+    humGain.gain.value = 0.25;
+
+    hum.connect(humGain);
+    humGain.connect(master);
+    hum.start();
+
+    // Gentle wave shimmer
+    const shimmer = audioCtx.createOscillator();
+    shimmer.type = "triangle";
+    shimmer.frequency.value = 420;
+
+    const shimmerGain = audioCtx.createGain();
+    shimmerGain.gain.value = 0.05;
+
+    shimmer.connect(shimmerGain);
+    shimmerGain.connect(master);
+    shimmer.start();
+
+    // Slow LFO to modulate shimmer
+    const lfo = audioCtx.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = 0.25;
+
+    const lfoGain = audioCtx.createGain();
+    lfoGain.gain.value = 40;
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(shimmer.frequency);
+    lfo.start();
 }
 
 function playExplosion() {
@@ -211,93 +235,4 @@ function resetGame() {
     document.getElementById("attempt-val").innerText = attempts;
     document.getElementById("progress-bar").style.width = "0%";
 
-    spawnHazard();
-}
-
-// COLLISION
-function checkCollision(h) {
-    return (
-        player.x + player.size > h.x &&
-        player.x - player.size < h.x + h.width &&
-        player.y + player.size > h.y &&
-        player.y - player.size < h.y + h.height
-    );
-}
-
-// RENDER LOOP
-function update() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (!gameStarted) {
-        ctx.fillStyle = "#00ffff";
-        ctx.font = "bold 42px monospace";
-        ctx.textAlign = "center";
-        ctx.fillText("🌊 TIDAL WAVE 🌊", canvas.width / 2, canvas.height / 2 - 25);
-        ctx.fillStyle = "#fff";
-        ctx.font = "16px monospace";
-        ctx.fillText("CLICK ANYWHERE TO BEGIN", canvas.width / 2, canvas.height / 2 + 25);
-        return requestAnimationFrame(update);
-    }
-
-    // Background
-    bgTimer += 0.015;
-    const shift = Math.sin(bgTimer) * 15;
-
-    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    grad.addColorStop(0, "#00142d");
-    grad.addColorStop(0.5, "#002b54");
-    grad.addColorStop(1, "#000914");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Sun rays
-    ctx.fillStyle = "rgba(0,255,255,0.03)";
-    for (let i = 0; i < 3; i++) {
-        ctx.beginPath();
-        ctx.moveTo(200 + i * 150 + shift, 0);
-        ctx.lineTo(350 + i * 200 + shift, canvas.height);
-        ctx.lineTo(150 + i * 200 + shift, canvas.height);
-        ctx.fill();
-    }
-
-    // Player physics
-    if (!gameOver && progress < 100) {
-        player.y += isPressing ? -player.speedY : player.speedY;
-        player.rotation = isPressing ? -0.35 : 0.35;
-
-        player.y = Math.max(ceilingLimit + player.size, Math.min(floorLimit - player.size, player.y));
-
-        hazards.forEach(h => h.x -= 8);
-        hazards = hazards.filter(h => h.x + h.width > 0);
-
-        hazards.forEach(h => {
-            if (checkCollision(h)) {
-                gameOver = true;
-                playExplosion();
-            }
-        });
-
-        progress += 0.12;
-        document.getElementById("progress-bar").style.width = progress + "%";
-    }
-
-    // Draw hazards
-    ctx.fillStyle = "#00d2ff";
-    hazards.forEach(h => ctx.fillRect(h.x, h.y, h.width, h.height));
-
-    // Draw player
-    ctx.save();
-    ctx.translate(player.x, player.y);
-    ctx.rotate(player.rotation);
-    ctx.fillStyle = "#00ffaa";
-    ctx.fillRect(-player.size / 2, -player.size / 2, player.size, player.size);
-    ctx.restore();
-
-    requestAnimationFrame(update);
-}
-
-update();
-</script>
-
-</body>
-</html>
+    spawn
